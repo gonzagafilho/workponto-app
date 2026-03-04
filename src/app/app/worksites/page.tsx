@@ -31,7 +31,9 @@ export default function WorksitesPage() {
 
   const [form, setForm] = useState({
     name: "",
+    cep: "",
     address: "",
+    cityState: "", // "Cidade - UF" (só visual)
     latitude: "",
     longitude: "",
     radiusMeters: "200",
@@ -47,7 +49,9 @@ export default function WorksitesPage() {
 
       if (!res.ok) {
         const msg =
-          (data && typeof data === "object" && ((data as any).error || (data as any).message)) ||
+          (data &&
+            typeof data === "object" &&
+            ((data as any).error || (data as any).message)) ||
           `HTTP ${res.status}`;
         throw new Error(String(msg));
       }
@@ -78,7 +82,9 @@ export default function WorksitesPage() {
     setEditing(null);
     setForm({
       name: "",
+      cep: "",
       address: "",
+      cityState: "",
       latitude: "",
       longitude: "",
       radiusMeters: "200",
@@ -92,7 +98,9 @@ export default function WorksitesPage() {
     setEditing(w);
     setForm({
       name: w.name || "",
+      cep: "",
       address: w.address || "",
+      cityState: "",
       latitude: String(w.latitude ?? ""),
       longitude: String(w.longitude ?? ""),
       radiusMeters: String(w.radiusMeters ?? 200),
@@ -102,9 +110,79 @@ export default function WorksitesPage() {
     setOpen(true);
   }
 
+  async function buscarLocalizacao() {
+    const cepRaw = (form.cep || "").replace(/\D/g, "");
+    const addressRaw = (form.address || "").trim();
+
+    if (cepRaw.length !== 8 && !addressRaw) {
+      alert("Informe um CEP (8 dígitos) ou um endereço para buscar a localização.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let addr = addressRaw;
+      let cityState = form.cityState || "";
+
+      // 1) ViaCEP (se CEP válido)
+      if (cepRaw.length === 8) {
+        const r = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`, {
+          cache: "no-store",
+        });
+        const j = await r.json().catch(() => null);
+
+        if (j?.erro) throw new Error("CEP não encontrado no ViaCEP.");
+
+        const logradouro = [j?.logradouro, j?.bairro].filter(Boolean).join(" - ");
+        const local = [j?.localidade, j?.uf].filter(Boolean).join(" - ");
+
+        if (!addr) addr = logradouro || "";
+        cityState = local || cityState;
+
+        setForm((s) => ({
+          ...s,
+          address: addr || s.address,
+          cityState: cityState || s.cityState,
+        }));
+      }
+
+      // 2) Nominatim (OpenStreetMap) - geocode
+      const query = [addr, cityState, "Brasil"].filter(Boolean).join(", ");
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+        query
+      )}`;
+
+      const g = await fetch(url, {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const arr = await g.json().catch(() => null);
+      const hit = Array.isArray(arr) ? arr[0] : null;
+      if (!hit?.lat || !hit?.lon) {
+        throw new Error("Não consegui localizar esse endereço. Tente completar o endereço.");
+      }
+
+      setForm((s) => ({
+        ...s,
+        latitude: String(hit.lat),
+        longitude: String(hit.lon),
+        cityState: cityState || s.cityState,
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Falha ao buscar localização");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function submit() {
     if (!form.name.trim()) return alert("Informe o nome");
-    if (form.latitude === "" || form.longitude === "") return alert("Informe latitude e longitude");
+    if (form.latitude === "" || form.longitude === "") {
+      return alert("Clique em “Buscar localização” para preencher a localização da obra.");
+    }
 
     const payload = {
       name: form.name.trim(),
@@ -127,7 +205,9 @@ export default function WorksitesPage() {
         });
         const data = await res.json().catch(() => null);
         if (!res.ok) {
-          const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+          const msg =
+            (data && ((data as any).error || (data as any).message)) ||
+            `HTTP ${res.status}`;
           throw new Error(String(msg));
         }
       } else {
@@ -139,7 +219,9 @@ export default function WorksitesPage() {
         });
         const data = await res.json().catch(() => null);
         if (!res.ok) {
-          const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+          const msg =
+            (data && ((data as any).error || (data as any).message)) ||
+            `HTTP ${res.status}`;
           throw new Error(String(msg));
         }
       }
@@ -155,7 +237,8 @@ export default function WorksitesPage() {
 
   async function toggleActive(w: Worksite) {
     const next = !w.isActive;
-    if (!confirm(`Confirmar ${next ? "ATIVAR" : "DESATIVAR"} a obra "${w.name}"?`)) return;
+    if (!confirm(`Confirmar ${next ? "ATIVAR" : "DESATIVAR"} a obra "${w.name}"?`))
+      return;
 
     try {
       const res = await fetch(`/api/worksites/${w.id}`, {
@@ -166,7 +249,9 @@ export default function WorksitesPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+        const msg =
+          (data && ((data as any).error || (data as any).message)) ||
+          `HTTP ${res.status}`;
         throw new Error(String(msg));
       }
       await load();
@@ -176,13 +261,19 @@ export default function WorksitesPage() {
   }
 
   async function remove(w: Worksite) {
-    if (!confirm(`Remover a obra "${w.name}"? Essa ação não pode ser desfeita.`)) return;
+    if (!confirm(`Remover a obra "${w.name}"? Essa ação não pode ser desfeita.`))
+      return;
 
     try {
-      const res = await fetch(`/api/worksites/${w.id}`, { method: "DELETE", cache: "no-store" });
+      const res = await fetch(`/api/worksites/${w.id}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+        const msg =
+          (data && ((data as any).error || (data as any).message)) ||
+          `HTTP ${res.status}`;
         throw new Error(String(msg));
       }
       await load();
@@ -201,7 +292,10 @@ export default function WorksitesPage() {
           </p>
         </div>
 
-        <button onClick={openCreate} className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90">
+        <button
+          onClick={openCreate}
+          className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90"
+        >
           Nova obra
         </button>
       </div>
@@ -253,20 +347,31 @@ export default function WorksitesPage() {
                   <td className="p-3">
                     <span
                       className={`px-2 py-1 rounded-full text-xs ${
-                        w.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        w.isActive
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                       }`}
                     >
                       {w.isActive ? "Ativa" : "Inativa"}
                     </span>
                   </td>
                   <td className="p-3 text-right space-x-2">
-                    <button className="px-3 py-1 rounded-lg border" onClick={() => openEdit(w)}>
+                    <button
+                      className="px-3 py-1 rounded-lg border"
+                      onClick={() => openEdit(w)}
+                    >
                       Editar
                     </button>
-                    <button className="px-3 py-1 rounded-lg border" onClick={() => toggleActive(w)}>
+                    <button
+                      className="px-3 py-1 rounded-lg border"
+                      onClick={() => toggleActive(w)}
+                    >
                       {w.isActive ? "Desativar" : "Ativar"}
                     </button>
-                    <button className="px-3 py-1 rounded-lg border" onClick={() => remove(w)}>
+                    <button
+                      className="px-3 py-1 rounded-lg border"
+                      onClick={() => remove(w)}
+                    >
                       Remover
                     </button>
                   </td>
@@ -281,7 +386,9 @@ export default function WorksitesPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
           <div className="w-full max-w-xl bg-white rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{editing ? "Editar obra" : "Nova obra"}</h2>
+              <h2 className="text-lg font-semibold">
+                {editing ? "Editar obra" : "Nova obra"}
+              </h2>
               <button className="text-sm px-2 py-1" onClick={() => setOpen(false)}>
                 Fechar
               </button>
@@ -298,30 +405,58 @@ export default function WorksitesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs text-neutral-500">Endereço (opcional)</label>
+                <label className="text-xs text-neutral-500">CEP</label>
+                <input
+                  className="w-full px-3 py-2 border rounded-lg"
+                  value={form.cep}
+                  onChange={(e) => setForm((s) => ({ ...s, cep: e.target.value }))}
+                  placeholder="00000-000"
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-xs text-neutral-500">
+                  Endereço (opcional)
+                </label>
                 <input
                   className="w-full px-3 py-2 border rounded-lg"
                   value={form.address}
-                  onChange={(e) => setForm((s) => ({ ...s, address: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, address: e.target.value }))
+                  }
+                  placeholder="Rua, número, bairro (se quiser)"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs text-neutral-500">Latitude</label>
+                <label className="text-xs text-neutral-500">Cidade/UF (auto)</label>
                 <input
-                  className="w-full px-3 py-2 border rounded-lg"
-                  value={form.latitude}
-                  onChange={(e) => setForm((s) => ({ ...s, latitude: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg bg-neutral-50"
+                  value={form.cityState}
+                  readOnly
+                  placeholder="Preenche pelo CEP"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs text-neutral-500">Longitude</label>
-                <input
-                  className="w-full px-3 py-2 border rounded-lg"
-                  value={form.longitude}
-                  onChange={(e) => setForm((s) => ({ ...s, longitude: e.target.value }))}
-                />
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={buscarLocalizacao}
+                  disabled={saving}
+                  className="w-full px-4 py-2 rounded-lg border bg-white hover:bg-neutral-50"
+                >
+                  {saving ? "Buscando..." : "Buscar localização"}
+                </button>
+              </div>
+
+              <div className="md:col-span-2 text-xs text-neutral-500">
+                {form.latitude && form.longitude ? (
+                  <span>Localização preenchida ✅</span>
+                ) : (
+                  <span>
+                    Preencha CEP/endereço e clique em “Buscar localização”.
+                  </span>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -329,7 +464,9 @@ export default function WorksitesPage() {
                 <input
                   className="w-full px-3 py-2 border rounded-lg"
                   value={form.radiusMeters}
-                  onChange={(e) => setForm((s) => ({ ...s, radiusMeters: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, radiusMeters: e.target.value }))
+                  }
                 />
               </div>
 
@@ -338,7 +475,12 @@ export default function WorksitesPage() {
                 <select
                   className="w-full px-3 py-2 border rounded-lg"
                   value={form.requireSelfie ? "1" : "0"}
-                  onChange={(e) => setForm((s) => ({ ...s, requireSelfie: e.target.value === "1" }))}
+                  onChange={(e) =>
+                    setForm((s) => ({
+                      ...s,
+                      requireSelfie: e.target.value === "1",
+                    }))
+                  }
                 >
                   <option value="1">Sim</option>
                   <option value="0">Não</option>
@@ -350,16 +492,54 @@ export default function WorksitesPage() {
                 <select
                   className="w-full px-3 py-2 border rounded-lg"
                   value={form.isActive ? "1" : "0"}
-                  onChange={(e) => setForm((s) => ({ ...s, isActive: e.target.value === "1" }))}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, isActive: e.target.value === "1" }))
+                  }
                 >
                   <option value="1">Sim</option>
                   <option value="0">Não</option>
                 </select>
               </div>
+
+              <div className="md:col-span-2">
+                <details className="rounded-xl border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Avançado
+                  </summary>
+
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-500">
+                        Latitude (auto)
+                      </label>
+                      <input
+                        className="w-full px-3 py-2 border rounded-lg bg-neutral-50"
+                        value={form.latitude}
+                        readOnly
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-500">
+                        Longitude (auto)
+                      </label>
+                      <input
+                        className="w-full px-3 py-2 border rounded-lg bg-neutral-50"
+                        value={form.longitude}
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                </details>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button className="px-4 py-2 rounded-lg border" onClick={() => setOpen(false)} disabled={saving}>
+              <button
+                className="px-4 py-2 rounded-lg border"
+                onClick={() => setOpen(false)}
+                disabled={saving}
+              >
                 Cancelar
               </button>
               <button
