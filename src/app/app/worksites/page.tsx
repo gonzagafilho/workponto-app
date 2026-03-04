@@ -45,9 +45,14 @@ export default function WorksitesPage() {
       const res = await fetch("/api/worksites", { cache: "no-store" });
       const data = await res.json().catch(() => null);
 
-      if (!res.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const msg =
+          (data && typeof data === "object" && ((data as any).error || (data as any).message)) ||
+          `HTTP ${res.status}`;
+        throw new Error(String(msg));
+      }
 
-      // backend retorna array direto (WorksitesService.list)
+      // backend lista retorna array direto
       setItems(Array.isArray(data) ? data : (data?.worksites ?? []));
     } catch (e: any) {
       alert(e?.message || "Falha ao carregar obras");
@@ -118,17 +123,25 @@ export default function WorksitesPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          cache: "no-store",
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+        if (!res.ok) {
+          const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+          throw new Error(String(msg));
+        }
       } else {
         const res = await fetch(`/api/worksites/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          cache: "no-store",
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+        if (!res.ok) {
+          const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+          throw new Error(String(msg));
+        }
       }
 
       setOpen(false);
@@ -149,9 +162,13 @@ export default function WorksitesPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: next }),
+        cache: "no-store",
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+        throw new Error(String(msg));
+      }
       await load();
     } catch (e: any) {
       alert(e?.message || "Falha ao atualizar status");
@@ -162,9 +179,12 @@ export default function WorksitesPage() {
     if (!confirm(`Remover a obra "${w.name}"? Essa ação não pode ser desfeita.`)) return;
 
     try {
-      const res = await fetch(`/api/worksites/${w.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/worksites/${w.id}`, { method: "DELETE", cache: "no-store" });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const msg = (data && ((data as any).error || (data as any).message)) || `HTTP ${res.status}`;
+        throw new Error(String(msg));
+      }
       await load();
     } catch (e: any) {
       alert(e?.message || "Falha ao remover");
@@ -176,13 +196,12 @@ export default function WorksitesPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Obras</h1>
-          <p className="text-sm text-neutral-500">Cadastre e gerencie obras, raio (geofence) e exigência de selfie.</p>
+          <p className="text-sm text-neutral-500">
+            Cadastre e gerencie obras, raio (geofence) e exigência de selfie.
+          </p>
         </div>
 
-        <button
-          onClick={openCreate}
-          className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90"
-        >
+        <button onClick={openCreate} className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90">
           Nova obra
         </button>
       </div>
@@ -213,9 +232,17 @@ export default function WorksitesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-4 text-neutral-500" colSpan={6}>Carregando...</td></tr>
+              <tr>
+                <td className="p-4 text-neutral-500" colSpan={6}>
+                  Carregando...
+                </td>
+              </tr>
             ) : filtered.length === 0 ? (
-              <tr><td className="p-4 text-neutral-500" colSpan={6}>Nenhuma obra encontrada.</td></tr>
+              <tr>
+                <td className="p-4 text-neutral-500" colSpan={6}>
+                  Nenhuma obra encontrada.
+                </td>
+              </tr>
             ) : (
               filtered.map((w) => (
                 <tr key={w.id} className="border-t">
@@ -224,16 +251,24 @@ export default function WorksitesPage() {
                   <td className="p-3">{w.radiusMeters}m</td>
                   <td className="p-3">{w.requireSelfie ? "Sim" : "Não"}</td>
                   <td className="p-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${w.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${
+                        w.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}
+                    >
                       {w.isActive ? "Ativa" : "Inativa"}
                     </span>
                   </td>
                   <td className="p-3 text-right space-x-2">
-                    <button className="px-3 py-1 rounded-lg border" onClick={() => openEdit(w)}>Editar</button>
+                    <button className="px-3 py-1 rounded-lg border" onClick={() => openEdit(w)}>
+                      Editar
+                    </button>
                     <button className="px-3 py-1 rounded-lg border" onClick={() => toggleActive(w)}>
                       {w.isActive ? "Desativar" : "Ativar"}
                     </button>
-                    <button className="px-3 py-1 rounded-lg border" onClick={() => remove(w)}>Remover</button>
+                    <button className="px-3 py-1 rounded-lg border" onClick={() => remove(w)}>
+                      Remover
+                    </button>
                   </td>
                 </tr>
               ))
@@ -247,13 +282,16 @@ export default function WorksitesPage() {
           <div className="w-full max-w-xl bg-white rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editing ? "Editar obra" : "Nova obra"}</h2>
-              <button className="text-sm px-2 py-1" onClick={() => setOpen(false)}>Fechar</button>
+              <button className="text-sm px-2 py-1" onClick={() => setOpen(false)}>
+                Fechar
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Nome</label>
-                <input className="w-full px-3 py-2 border rounded-lg"
+                <input
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.name}
                   onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
                 />
@@ -261,7 +299,8 @@ export default function WorksitesPage() {
 
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Endereço (opcional)</label>
-                <input className="w-full px-3 py-2 border rounded-lg"
+                <input
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.address}
                   onChange={(e) => setForm((s) => ({ ...s, address: e.target.value }))}
                 />
@@ -269,7 +308,8 @@ export default function WorksitesPage() {
 
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Latitude</label>
-                <input className="w-full px-3 py-2 border rounded-lg"
+                <input
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.latitude}
                   onChange={(e) => setForm((s) => ({ ...s, latitude: e.target.value }))}
                 />
@@ -277,7 +317,8 @@ export default function WorksitesPage() {
 
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Longitude</label>
-                <input className="w-full px-3 py-2 border rounded-lg"
+                <input
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.longitude}
                   onChange={(e) => setForm((s) => ({ ...s, longitude: e.target.value }))}
                 />
@@ -285,7 +326,8 @@ export default function WorksitesPage() {
 
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Raio (metros)</label>
-                <input className="w-full px-3 py-2 border rounded-lg"
+                <input
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.radiusMeters}
                   onChange={(e) => setForm((s) => ({ ...s, radiusMeters: e.target.value }))}
                 />
@@ -293,7 +335,8 @@ export default function WorksitesPage() {
 
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Exigir selfie</label>
-                <select className="w-full px-3 py-2 border rounded-lg"
+                <select
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.requireSelfie ? "1" : "0"}
                   onChange={(e) => setForm((s) => ({ ...s, requireSelfie: e.target.value === "1" }))}
                 >
@@ -304,7 +347,8 @@ export default function WorksitesPage() {
 
               <div className="space-y-1">
                 <label className="text-xs text-neutral-500">Ativa</label>
-                <select className="w-full px-3 py-2 border rounded-lg"
+                <select
+                  className="w-full px-3 py-2 border rounded-lg"
                   value={form.isActive ? "1" : "0"}
                   onChange={(e) => setForm((s) => ({ ...s, isActive: e.target.value === "1" }))}
                 >
@@ -318,7 +362,11 @@ export default function WorksitesPage() {
               <button className="px-4 py-2 rounded-lg border" onClick={() => setOpen(false)} disabled={saving}>
                 Cancelar
               </button>
-              <button className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90" onClick={submit} disabled={saving}>
+              <button
+                className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90"
+                onClick={submit}
+                disabled={saving}
+              >
                 {saving ? "Salvando..." : "Salvar"}
               </button>
             </div>
