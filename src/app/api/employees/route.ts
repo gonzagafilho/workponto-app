@@ -1,12 +1,7 @@
-// src/app/api/worksites/route.ts
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
 const API_BASE =
-  (process.env.API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "http://127.0.0.1:3011") + "/api";
+  (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3011") + "/api";
 
 function readCookieToken(req: Request) {
   const cookie = req.headers.get("cookie") || "";
@@ -14,19 +9,11 @@ function readCookieToken(req: Request) {
   return m ? decodeURIComponent(m[1]) : "";
 }
 
-async function readJsonSafe(req: Request) {
-  try {
-    return await req.json();
-  } catch {
-    return null;
-  }
-}
-
 export async function GET(req: Request) {
   const token = readCookieToken(req);
   if (!token) return NextResponse.json({ ok: false, error: "Sem sessão" }, { status: 401 });
 
-  const upstream = await fetch(`${API_BASE}/worksites`, {
+  const upstream = await fetch(`${API_BASE}/employees`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -39,14 +26,13 @@ export async function POST(req: Request) {
   const token = readCookieToken(req);
   if (!token) return NextResponse.json({ ok: false, error: "Sem sessão" }, { status: 401 });
 
-  const body = await readJsonSafe(req);
-  if (!body) return NextResponse.json({ ok: false, error: "Body inválido" }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
 
-  const upstream = await fetch(`${API_BASE}/worksites`, {
+  const upstream = await fetch(`${API_BASE}/employees`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
     cache: "no-store",

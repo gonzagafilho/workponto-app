@@ -1,5 +1,5 @@
-// src/app/api/worksites/route.ts
-import { NextResponse } from "next/server";
+// src/app/api/worksites/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -22,12 +22,26 @@ async function readJsonSafe(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
   const token = readCookieToken(req);
   if (!token) return NextResponse.json({ ok: false, error: "Sem sessão" }, { status: 401 });
 
-  const upstream = await fetch(`${API_BASE}/worksites`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const { id } = await ctx.params;
+  if (!id) return NextResponse.json({ ok: false, error: "id ausente" }, { status: 400 });
+
+  const body = await readJsonSafe(req);
+  if (!body) return NextResponse.json({ ok: false, error: "Body inválido" }, { status: 400 });
+
+  const upstream = await fetch(`${API_BASE}/worksites/${id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
     cache: "no-store",
   });
 
@@ -35,20 +49,19 @@ export async function GET(req: Request) {
   return NextResponse.json(data, { status: upstream.status });
 }
 
-export async function POST(req: Request) {
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
   const token = readCookieToken(req);
   if (!token) return NextResponse.json({ ok: false, error: "Sem sessão" }, { status: 401 });
 
-  const body = await readJsonSafe(req);
-  if (!body) return NextResponse.json({ ok: false, error: "Body inválido" }, { status: 400 });
+  const { id } = await ctx.params;
+  if (!id) return NextResponse.json({ ok: false, error: "id ausente" }, { status: 400 });
 
-  const upstream = await fetch(`${API_BASE}/worksites`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+  const upstream = await fetch(`${API_BASE}/worksites/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
 
