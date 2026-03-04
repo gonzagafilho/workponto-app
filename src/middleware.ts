@@ -49,7 +49,37 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get("wp_access")?.value || "";
   const payload = token ? decodeJwtPayload(token) : null;
   const role = payload?.role || null;
+  
+    const isAdminManager = role === "ADMIN" || role === "MANAGER";
 
+  // =========================
+  // 0) Restringe Obras (UI e API) para ADMIN/MANAGER
+  // =========================
+  if (pathname.startsWith("/app/worksites")) {
+    // /app/* já exige token válido mais abaixo, mas aqui já garantimos role
+    if (!token || !payload || isExpired(payload.exp)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    }
+
+    if (!isAdminManager) {
+      const url = req.nextUrl.clone();
+      url.pathname = role === "EMPLOYEE" ? "/app/ponto" : "/app/dashboard";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  if (pathname.startsWith("/api/worksites")) {
+    // API: responde 401/403 (não redireciona)
+    if (!token || !payload || isExpired(payload.exp)) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    if (!isAdminManager) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+  }
   // =========================
   // 1) Protege /app: precisa token válido
   // =========================
@@ -97,5 +127,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/login"],
+  matcher: ["/app/:path*", "/login", "/api/worksites/:path*"],
 };
